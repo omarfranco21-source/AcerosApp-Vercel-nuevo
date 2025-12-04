@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ConstruApp: Cat√°logo y Pedidos</title>
+    <title>ConstruApp: Cat·logo y Pedidos</title>
     <!-- Carga Tailwind CSS para estilos -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Estilos base para la aplicaci√≥n */
+        /* Estilos base para la aplicaciÛn */
         html, body, #root {
             height: 100%;
             margin: 0;
@@ -26,20 +26,20 @@
     </style>
 </head>
 <body>
-    <!-- Contenedor donde React inyectar√° la aplicaci√≥n -->
+    <!-- Contenedor donde React inyectar· la aplicaciÛn -->
     <div id="root" class="min-h-screen bg-gray-100 pb-20">
         <!-- Indicador de carga simple inicial -->
-        <div class="flex items-center justify-center h-screen text-gray-500">Cargando aplicaci√≥n...</div>
+        <div class="flex items-center justify-center h-screen text-gray-500">Cargando aplicaciÛn...</div>
     </div>
 
-    <!-- M√≥dulos de Firebase y React -->
+    <!-- MÛdulos de Firebase y React -->
     <script type="module">
-        // Importaciones de Firebase (para base de datos en tiempo real y autenticaci√≥n)
+        // Importaciones de Firebase (para base de datos en tiempo real y autenticaciÛn)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Importaciones de React (necesarias para la l√≥gica de la UI)
+        // Importaciones de React (necesarias para la lÛgica de la UI)
         import React, { useState, useEffect, useCallback } from 'https://esm.sh/react@18.3.1';
         import ReactDOM from 'https://esm.sh/react-dom@18.3.1/client';
 
@@ -62,15 +62,15 @@
             }).format(amount);
         };
 
-        // Define la ruta de la colecci√≥n p√∫blica (donde viven los materiales)
+        // Define la ruta de la colecciÛn p˙blica (donde viven los materiales)
         const getPublicCollectionPath = (collectionName) => 
             `/artifacts/${appId}/public/data/${collectionName}`;
 
-        // Funci√≥n de inicializaci√≥n y autenticaci√≥n de Firebase
+        // FunciÛn de inicializaciÛn y autenticaciÛn de Firebase
         const initFirebase = async (callback) => {
             try {
                 if (Object.keys(firebaseConfig).length === 0) {
-                    console.error("Firebase Config no est√° disponible.");
+                    console.error("Firebase Config no est· disponible.");
                     callback(false);
                     return;
                 }
@@ -79,30 +79,30 @@
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                // Autenticaci√≥n usando el token de seguridad
+                // AutenticaciÛn usando el token de seguridad
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
                 } else {
                     await signInAnonymously(auth);
                 }
                 
-                console.log("Firebase: Inicializado y autenticado con √©xito.");
+                console.log("Firebase: Inicializado y autenticado con Èxito.");
                 
-                // Observador de estado para saber cuando el usuario est√° listo
+                // Observador de estado para saber cuando el usuario est· listo
                 onAuthStateChanged(auth, (user) => {
                     isAuthReady = true;
-                    callback(true); // Indica que la inicializaci√≥n y autenticaci√≥n est√°n listas
+                    callback(true); // Indica que la inicializaciÛn y autenticaciÛn est·n listas
                 });
 
             } catch (error) {
-                console.error("Firebase: Error Cr√≠tico al inicializar o autenticar:", error);
+                console.error("Firebase: Error CrÌtico al inicializar o autenticar:", error);
                 callback(false);
             }
         };
 
         // --- COMPONENTES DE REACT ---
 
-        // Componente Principal de la Aplicaci√≥n
+        // Componente Principal de la AplicaciÛn
         const App = () => {
             const [materiales, setMateriales] = useState([]);
             const [isAdmin, setIsAdmin] = useState(false);
@@ -110,7 +110,7 @@
             const [isLoading, setIsLoading] = useState(true);
             const [error, setError] = useState(null);
 
-            // 1. Inicializaci√≥n de Firebase
+            // 1. InicializaciÛn de Firebase
             useEffect(() => {
                 const forceRender = (success) => {
                     if (success) {
@@ -132,14 +132,14 @@
                     const user = auth.currentUser;
                     const currentUserId = user ? user.uid : 'sin-usuario';
                     setUserId(currentUserId);
-                    // Rol de Admin: ID espec√≠fico para este ejemplo
+                    // Rol de Admin: ID especÌfico para este ejemplo
                     setIsAdmin(currentUserId === 'admin-construapp-logic'); 
                 }
             }, [isAuthReady]);
 
             // 3. Carga de datos de materiales en tiempo real
             useEffect(() => {
-                // Solo si Firebase est√° listo y el usuario est√° autenticado
+                // Solo si Firebase est· listo y el usuario est· autenticado
                 if (db && isAuthReady && userId) {
                     const materialesPath = getPublicCollectionPath('materiales');
                     const q = query(collection(db, materialesPath));
@@ -156,7 +156,7 @@
                         setIsLoading(false);
                     }, (snapError) => {
                         console.error("App Estado: Error al escuchar materiales:", snapError);
-                        setError("Error al cargar datos del cat√°logo: " + snapError.message);
+                        setError("Error al cargar datos del cat·logo: " + snapError.message);
                         setIsLoading(false);
                     });
 
@@ -166,13 +166,13 @@
                 }
             }, [db, isAuthReady, userId]);
 
-            // Funci√≥n para actualizar el precio del material (solo para el admin)
+            // FunciÛn para actualizar el precio del material (solo para el admin)
             const handleUpdatePrecio = useCallback(async (id, newPrecio) => {
                 if (!db || !isAdmin) return;
                 
                 const precioNumerico = parseFloat(newPrecio);
                 if (isNaN(precioNumerico) || precioNumerico <= 0) {
-                    setError("El precio ingresado no es v√°lido. Debe ser un n√∫mero positivo.");
+                    setError("El precio ingresado no es v·lido. Debe ser un n˙mero positivo.");
                     return;
                 }
                 
@@ -222,7 +222,7 @@
                         ) : (
                             <div className="lg:col-span-3 text-center p-10 bg-white rounded-xl shadow border-l-4 border-orange-500">
                                 <p className="text-2xl font-bold text-orange-600 mb-3">
-                                    ¬°Cat√°logo Vac√≠o!
+                                    °Cat·logo VacÌo!
                                 </p>
                                 <p className="text-gray-600 mb-5">
                                     No hay materiales cargados en la base de datos.
@@ -230,7 +230,7 @@
                                 {isAdmin && <InitialDataLoader db={db} />}
                                 {!isAdmin && (
                                     <p className="mt-2 text-gray-600">
-                                        P√≠dele al administrador (ID: <code className="font-mono text-sm">admin-construapp-logic</code>) que cargue los datos.
+                                        PÌdele al administrador (ID: <code className="font-mono text-sm">admin-construapp-logic</code>) que cargue los datos.
                                     </p>
                                 )}
                             </div>
@@ -251,7 +251,7 @@
                 setIsEditing(false);
             };
             
-            // Imagen de Placeholder din√°mica
+            // Imagen de Placeholder din·mica
             const placeholderText = material.nombre.split(' ').slice(0, 2).join('+');
             const placeholderImageUrl = `https://placehold.co/400x200/f97316/ffffff?text=${placeholderText}`;
 
