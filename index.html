@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ConstruApp: Catálogo y Pedidos</title>
+    <title>ConstruApp: CatÃ¡logo y Pedidos</title>
     <!-- Carga Tailwind CSS para estilos -->
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Estilos base para la aplicación */
+        /* Estilos base para la aplicaciÃ³n */
         html, body, #root {
             height: 100%;
             margin: 0;
@@ -26,20 +26,20 @@
     </style>
 </head>
 <body>
-    <!-- Contenedor donde React inyectará la aplicación -->
+    <!-- Contenedor donde React inyectarÃ¡ la aplicaciÃ³n -->
     <div id="root" class="min-h-screen bg-gray-100 pb-20">
         <!-- Indicador de carga simple inicial -->
-        <div class="flex items-center justify-center h-screen text-gray-500">Cargando aplicación...</div>
+        <div class="flex items-center justify-center h-screen text-gray-500">Cargando aplicaciÃ³n...</div>
     </div>
 
-    <!-- Módulos de Firebase y React -->
+    <!-- MÃ³dulos de Firebase y React -->
     <script type="module">
-        // Importaciones de Firebase (para base de datos en tiempo real y autenticación)
+        // Importaciones de Firebase (para base de datos en tiempo real y autenticaciÃ³n)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, onSnapshot, collection, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Importaciones de React (necesarias para la lógica de la UI)
+        // Importaciones de React (necesarias para la lÃ³gica de la UI)
         import React, { useState, useEffect, useCallback } from 'https://esm.sh/react@18.3.1';
         import ReactDOM from 'https://esm.sh/react-dom@18.3.1/client';
 
@@ -62,15 +62,15 @@
             }).format(amount);
         };
 
-        // Define la ruta de la colección pública (donde viven los materiales)
+        // Define la ruta de la colecciÃ³n pÃºblica (donde viven los materiales)
         const getPublicCollectionPath = (collectionName) => 
             `/artifacts/${appId}/public/data/${collectionName}`;
 
-        // Función de inicialización y autenticación de Firebase
+        // FunciÃ³n de inicializaciÃ³n y autenticaciÃ³n de Firebase
         const initFirebase = async (callback) => {
             try {
                 if (Object.keys(firebaseConfig).length === 0) {
-                    console.error("Firebase Config no está disponible.");
+                    console.error("Firebase Config no estÃ¡ disponible.");
                     callback(false);
                     return;
                 }
@@ -79,30 +79,30 @@
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                // Autenticación usando el token de seguridad
+                // AutenticaciÃ³n usando el token de seguridad
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
                 } else {
                     await signInAnonymously(auth);
                 }
                 
-                console.log("Firebase: Inicializado y autenticado con éxito.");
+                console.log("Firebase: Inicializado y autenticado con Ã©xito.");
                 
-                // Observador de estado para saber cuando el usuario está listo
+                // Observador de estado para saber cuando el usuario estÃ¡ listo
                 onAuthStateChanged(auth, (user) => {
                     isAuthReady = true;
-                    callback(true); // Indica que la inicialización y autenticación están listas
+                    callback(true); // Indica que la inicializaciÃ³n y autenticaciÃ³n estÃ¡n listas
                 });
 
             } catch (error) {
-                console.error("Firebase: Error Crítico al inicializar o autenticar:", error);
+                console.error("Firebase: Error CrÃ­tico al inicializar o autenticar:", error);
                 callback(false);
             }
         };
 
         // --- COMPONENTES DE REACT ---
 
-        // Componente Principal de la Aplicación
+        // Componente Principal de la AplicaciÃ³n
         const App = () => {
             const [materiales, setMateriales] = useState([]);
             const [isAdmin, setIsAdmin] = useState(false);
@@ -110,7 +110,7 @@
             const [isLoading, setIsLoading] = useState(true);
             const [error, setError] = useState(null);
 
-            // 1. Inicialización de Firebase
+            // 1. InicializaciÃ³n de Firebase
             useEffect(() => {
                 const forceRender = (success) => {
                     if (success) {
@@ -132,167 +132,14 @@
                     const user = auth.currentUser;
                     const currentUserId = user ? user.uid : 'sin-usuario';
                     setUserId(currentUserId);
-                    // Rol de Admin: ID específico para este ejemplo
+                    // Rol de Admin: ID especÃ­fico para este ejemplo
                     setIsAdmin(currentUserId === 'admin-construapp-logic'); 
                 }
             }, [isAuthReady]);
 
             // 3. Carga de datos de materiales en tiempo real
             useEffect(() => {
-                // Solo si Firebase está listo y el usuario está autenticado
+                // Solo si Firebase estÃ¡ listo y el usuario estÃ¡ autenticado
                 if (db && isAuthReady && userId) {
                     const materialesPath = getPublicCollectionPath('materiales');
-                    const q = query(collection(db, materialesPath));
-
-                    // Escucha en tiempo real (onSnapshot) para actualizaciones inmediatas
-                    const unsubscribe = onSnapshot(q, (snapshot) => {
-                        const listaMateriales = snapshot.docs.map(doc => ({
-                            id: doc.id,
-                            ...doc.data()
-                        }));
-                        // Ordenar por nombre
-                        listaMateriales.sort((a, b) => a.nombre.localeCompare(b.nombre));
-                        setMateriales(listaMateriales);
-                        setIsLoading(false);
-                    }, (snapError) => {
-                        console.error("App Estado: Error al escuchar materiales:", snapError);
-                        setError("Error al cargar datos del catálogo: " + snapError.message);
-                        setIsLoading(false);
-                    });
-
-                    return () => unsubscribe(); // Limpieza del listener
-                } else if (isAuthReady && !db) {
-                    setIsLoading(false);
-                }
-            }, [db, isAuthReady, userId]);
-
-            // Función para actualizar el precio del material (solo para el admin)
-            const handleUpdatePrecio = useCallback(async (id, newPrecio) => {
-                if (!db || !isAdmin) return;
-                
-                const precioNumerico = parseFloat(newPrecio);
-                if (isNaN(precioNumerico) || precioNumerico <= 0) {
-                    setError("El precio ingresado no es válido. Debe ser un número positivo.");
-                    return;
-                }
-                
-                try {
-                    const docRef = doc(db, getPublicCollectionPath('materiales'), id);
-                    await setDoc(docRef, { precio: precioNumerico }, { merge: true });
-                    setError(null); // Limpiar error si fue exitoso
-                } catch (updateError) {
-                    console.error("Error al actualizar el precio:", updateError);
-                    setError("Error al guardar el precio: " + updateError.message);
-                }
-            }, [db, isAdmin]);
-
-            // --- Renderizado de Estados ---
-            if (error) {
-                 return <ErrorMessage message={error} onClear={() => setError(null)} />;
-            }
-            
-            if (isLoading) {
-                return (
-                    <div className="flex items-center justify-center h-screen">
-                        <div className="text-xl text-gray-500 flex items-center">
-                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-orange-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            Conectando con la Base de Datos...
-                        </div>
-                    </div>
-                );
-            }
-
-            return (
-                <div id="construapp" className="p-4 md:p-8 max-w-7xl mx-auto">
-                    <Header userId={userId} isAdmin={isAdmin} />
-                    
-                    <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {materiales.length > 0 ? (
-                            materiales.map(material => (
-                                <MaterialCard 
-                                    key={material.id} 
-                                    material={material} 
-                                    isAdmin={isAdmin}
-                                    onUpdatePrecio={handleUpdatePrecio}
-                                />
-                            ))
-                        ) : (
-                            <div className="lg:col-span-3 text-center p-10 bg-white rounded-xl shadow border-l-4 border-orange-500">
-                                <p className="text-2xl font-bold text-orange-600 mb-3">
-                                    ¡Catálogo Vacío!
-                                </p>
-                                <p className="text-gray-600 mb-5">
-                                    No hay materiales cargados en la base de datos.
-                                </p>
-                                {isAdmin && <InitialDataLoader db={db} />}
-                                {!isAdmin && (
-                                    <p className="mt-2 text-gray-600">
-                                        Pídele al administrador (ID: <code className="font-mono text-sm">admin-construapp-logic</code>) que cargue los datos.
-                                    </p>
-                                )}
-                            </div>
-                        )}
-                    </div>
-                    <Instructions isAdmin={isAdmin} />
-                </div>
-            );
-        };
-
-        // Componente de la Tarjeta de Material
-        const MaterialCard = ({ material, isAdmin, onUpdatePrecio }) => {
-            const [isEditing, setIsEditing] = useState(false);
-            const [newPrecio, setNewPrecio] = useState(material.precio);
-
-            const handleSave = () => {
-                onUpdatePrecio(material.id, newPrecio);
-                setIsEditing(false);
-            };
-            
-            // Imagen de Placeholder dinámica
-            const placeholderText = material.nombre.split(' ').slice(0, 2).join('+');
-            const placeholderImageUrl = `https://placehold.co/400x200/f97316/ffffff?text=${placeholderText}`;
-
-            return (
-                <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden border border-gray-200">
-                    <img src={placeholderImageUrl} alt={material.nombre} className="w-full h-48 object-cover" onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/400x200/cccccc/000000?text=Material'; }} />
-                    <div className="p-5">
-                        <h3 className="text-2xl font-bold text-gray-800 mb-2">{material.nombre}</h3>
-                        <p className="text-gray-600 mb-4 h-12 overflow-hidden">{material.descripcion}</p>
-                        
-                        <div className="flex items-center justify-between">
-                            {isEditing ? (
-                                <input
-                                    type="number"
-                                    step="0.01"
-                                    value={newPrecio}
-                                    onChange={(e) => setNewPrecio(e.target.value)}
-                                    className="border border-orange-300 rounded-lg p-2 w-2/3 text-xl font-mono focus:ring-orange-500 focus:border-orange-500"
-                                    placeholder="Nuevo precio"
-                                />
-                            ) : (
-                                <p className="text-3xl font-extrabold text-orange-600">
-                                    {formatCurrency(material.precio || 0)}
-                                </p>
-                            )}
-
-                            {isAdmin && (
-                                <button
-                                    onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-                                    className={`ml-3 px-4 py-2 rounded-full text-white font-semibold transition-colors duration-200 shadow-md
-                                                ${isEditing ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-500 hover:bg-orange-600'}`}
-                                >
-                                    {isEditing ? 'Guardar' : 'Editar'}
-                                </button>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        // Componente del Encabezado
-        const Header = ({ userId, isAdmin }) => (
-            <header className="bg-white p-6 rounded-xl shadow-md border-b-4 border-
+                    const
