@@ -15,6 +15,7 @@
             font-family: 'Inter', sans-serif;
             overflow-x: hidden;
         }
+        /* Oculta la barra de desplazamiento en todos los navegadores */
         .no-scrollbar::-webkit-scrollbar {
             display: none;
         }
@@ -27,22 +28,22 @@
 <body>
     <!-- Contenedor donde React inyectará la aplicación -->
     <div id="root" class="min-h-screen bg-gray-100 pb-20">
-        <!-- Indicador de carga simple -->
+        <!-- Indicador de carga simple inicial -->
         <div class="flex items-center justify-center h-screen text-gray-500">Cargando aplicación...</div>
     </div>
 
     <!-- Módulos de Firebase y React -->
     <script type="module">
-        // Importaciones de Firebase (necesarias para la base de datos y autenticación)
+        // Importaciones de Firebase (para base de datos en tiempo real y autenticación)
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, getDoc, setDoc, onSnapshot, collection, query, orderBy, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, onSnapshot, collection, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Importaciones de React (solo necesitamos estos dos para que funcione)
+        // Importaciones de React (necesarias para la lógica de la UI)
         import React, { useState, useEffect, useCallback } from 'https://esm.sh/react@18.3.1';
         import ReactDOM from 'https://esm.sh/react-dom@18.3.1/client';
 
-        // Variables Globales (Proporcionadas por el entorno para la conexión segura)
+        // --- Variables de Entorno (Obligatorias para el funcionamiento) ---
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
         const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
@@ -52,7 +53,7 @@
 
         // --- FUNCIONES DE BASE DE DATOS Y UTILIDADES ---
         
-        // Convierte un número grande a formato de moneda con separadores
+        // Formato de moneda (Pesos Mexicanos)
         const formatCurrency = (amount) => {
             return new Intl.NumberFormat('es-MX', {
                 style: 'currency',
@@ -61,15 +62,16 @@
             }).format(amount);
         };
 
-        // Ruta de la colección pública (donde se guardan los materiales)
+        // Define la ruta de la colección pública (donde viven los materiales)
         const getPublicCollectionPath = (collectionName) => 
             `/artifacts/${appId}/public/data/${collectionName}`;
 
         // Función de inicialización y autenticación de Firebase
-        const initFirebase = async () => {
+        const initFirebase = async (callback) => {
             try {
                 if (Object.keys(firebaseConfig).length === 0) {
                     console.error("Firebase Config no está disponible.");
+                    callback(false);
                     return;
                 }
                 
@@ -77,27 +79,24 @@
                 db = getFirestore(app);
                 auth = getAuth(app);
                 
-                // Intento de autenticación segura (requerido por la plataforma)
+                // Autenticación usando el token de seguridad
                 if (initialAuthToken) {
                     await signInWithCustomToken(auth, initialAuthToken);
                 } else {
                     await signInAnonymously(auth);
                 }
                 
-                console.log("Firebase inicializado y autenticado.");
+                console.log("Firebase: Inicializado y autenticado con éxito.");
                 
-                // Observador de estado de autenticación (garantiza que la UI sepa quién es el usuario)
+                // Observador de estado para saber cuando el usuario está listo
                 onAuthStateChanged(auth, (user) => {
                     isAuthReady = true;
-                    // Forzamos un re-render después de la autenticación
-                    const rootElement = document.getElementById('root');
-                    if (rootElement) {
-                         ReactDOM.createRoot(rootElement).render(<React.StrictMode><App /></React.StrictMode>);
-                    }
+                    callback(true); // Indica que la inicialización y autenticación están listas
                 });
 
             } catch (error) {
-                console.error("Error al inicializar Firebase o autenticar:", error);
+                console.error("Firebase: Error Crítico al inicializar o autenticar:", error);
+                callback(false);
             }
         };
 
@@ -108,55 +107,64 @@
             const [materiales, setMateriales] = useState([]);
             const [isAdmin, setIsAdmin] = useState(false);
             const [userId, setUserId] = useState('');
-            const [loading, setLoading] = useState(true);
+            const [isLoading, setIsLoading] = useState(true);
+            const [error, setError] = useState(null);
 
-            // 1. Inicializa Firebase (se ejecuta solo una vez)
+            // 1. Inicialización de Firebase
             useEffect(() => {
+                const forceRender = (success) => {
+                    if (success) {
+                        setIsLoading(true); 
+                    } else {
+                        setIsLoading(false);
+                        setError("Error: No se pudo conectar a Firebase. Revisa la consola.");
+                    }
+                };
+
                 if (!db) {
-                    // Si ya se intentó inicializar antes, simplemente esperamos el onAuthStateChanged
-                    // Si la inicialización fue exitosa, db ya tendrá un valor
+                    initFirebase(forceRender);
                 }
             }, []);
 
-            // 2. Establece el usuario y chequea el rol (se ejecuta al autenticarse)
+            // 2. Establecer el usuario y verificar el rol de administrador
             useEffect(() => {
                 if (auth && isAuthReady) {
                     const user = auth.currentUser;
                     const currentUserId = user ? user.uid : 'sin-usuario';
                     setUserId(currentUserId);
-                    // El usuario "admin-construapp-logic" es el ID que tiene la lógica de administración
+                    // Rol de Admin: ID específico para este ejemplo
                     setIsAdmin(currentUserId === 'admin-construapp-logic'); 
-                    console.log("Usuario actual:", currentUserId, " | Es Admin:", currentUserId === 'admin-construapp-logic');
-                    setLoading(false);
                 }
-            }, [auth, isAuthReady]);
+            }, [isAuthReady]);
 
-            // 3. Carga de datos en tiempo real (Materiales)
+            // 3. Carga de datos de materiales en tiempo real
             useEffect(() => {
-                if (db && isAuthReady) {
+                // Solo si Firebase está listo y el usuario está autenticado
+                if (db && isAuthReady && userId) {
                     const materialesPath = getPublicCollectionPath('materiales');
                     const q = query(collection(db, materialesPath));
 
-                    // Escucha en tiempo real (onSnapshot)
+                    // Escucha en tiempo real (onSnapshot) para actualizaciones inmediatas
                     const unsubscribe = onSnapshot(q, (snapshot) => {
                         const listaMateriales = snapshot.docs.map(doc => ({
                             id: doc.id,
                             ...doc.data()
                         }));
-                        // Sort by name for display purposes
+                        // Ordenar por nombre
                         listaMateriales.sort((a, b) => a.nombre.localeCompare(b.nombre));
                         setMateriales(listaMateriales);
-                        setLoading(false);
-                        console.log("Materiales cargados:", listaMateriales.length);
-                    }, (error) => {
-                        console.error("Error al escuchar materiales:", error);
-                        setLoading(false);
+                        setIsLoading(false);
+                    }, (snapError) => {
+                        console.error("App Estado: Error al escuchar materiales:", snapError);
+                        setError("Error al cargar datos del catálogo: " + snapError.message);
+                        setIsLoading(false);
                     });
 
-                    // Limpieza del listener
-                    return () => unsubscribe();
+                    return () => unsubscribe(); // Limpieza del listener
+                } else if (isAuthReady && !db) {
+                    setIsLoading(false);
                 }
-            }, [db, isAuthReady]);
+            }, [db, isAuthReady, userId]);
 
             // Función para actualizar el precio del material (solo para el admin)
             const handleUpdatePrecio = useCallback(async (id, newPrecio) => {
@@ -164,23 +172,35 @@
                 
                 const precioNumerico = parseFloat(newPrecio);
                 if (isNaN(precioNumerico) || precioNumerico <= 0) {
-                    console.error("Precio inválido.");
+                    setError("El precio ingresado no es válido. Debe ser un número positivo.");
                     return;
                 }
                 
                 try {
                     const docRef = doc(db, getPublicCollectionPath('materiales'), id);
                     await setDoc(docRef, { precio: precioNumerico }, { merge: true });
-                    console.log(`Precio de ${id} actualizado a ${precioNumerico}`);
-                } catch (error) {
-                    console.error("Error al actualizar el precio:", error);
+                    setError(null); // Limpiar error si fue exitoso
+                } catch (updateError) {
+                    console.error("Error al actualizar el precio:", updateError);
+                    setError("Error al guardar el precio: " + updateError.message);
                 }
             }, [db, isAdmin]);
 
-            if (loading) {
+            // --- Renderizado de Estados ---
+            if (error) {
+                 return <ErrorMessage message={error} onClear={() => setError(null)} />;
+            }
+            
+            if (isLoading) {
                 return (
                     <div className="flex items-center justify-center h-screen">
-                        <div className="text-xl text-gray-500">Cargando Base de Datos...</div>
+                        <div className="text-xl text-gray-500 flex items-center">
+                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-orange-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Conectando con la Base de Datos...
+                        </div>
                     </div>
                 );
             }
@@ -200,21 +220,19 @@
                                 />
                             ))
                         ) : (
-                            <div className="lg:col-span-3 text-center p-10 bg-white rounded-lg shadow">
-                                <p className="text-xl text-orange-600 font-semibold">
-                                    No hay materiales cargados.
+                            <div className="lg:col-span-3 text-center p-10 bg-white rounded-xl shadow border-l-4 border-orange-500">
+                                <p className="text-2xl font-bold text-orange-600 mb-3">
+                                    ¡Catálogo Vacío!
                                 </p>
-                                {isAdmin && (
-                                    <p className="mt-2 text-gray-600">
-                                        ¡Como administrador, carga los datos iniciales!
-                                    </p>
-                                )}
+                                <p className="text-gray-600 mb-5">
+                                    No hay materiales cargados en la base de datos.
+                                </p>
+                                {isAdmin && <InitialDataLoader db={db} />}
                                 {!isAdmin && (
                                     <p className="mt-2 text-gray-600">
-                                        Pídele al administrador que cargue los datos.
+                                        Pídele al administrador (ID: <code className="font-mono text-sm">admin-construapp-logic</code>) que cargue los datos.
                                     </p>
                                 )}
-                                {isAdmin && <InitialDataLoader db={db} />}
                             </div>
                         )}
                     </div>
@@ -226,42 +244,44 @@
         // Componente de la Tarjeta de Material
         const MaterialCard = ({ material, isAdmin, onUpdatePrecio }) => {
             const [isEditing, setIsEditing] = useState(false);
-            const [newPrecio, setNewPrecio] = useState(material.precio || 0);
+            const [newPrecio, setNewPrecio] = useState(material.precio);
 
             const handleSave = () => {
                 onUpdatePrecio(material.id, newPrecio);
                 setIsEditing(false);
             };
             
-            // Placeholder Image URL based on name
-            const placeholderImageUrl = `https://placehold.co/400x200/f97316/ffffff?text=${material.nombre.split(' ')[0]}`;
+            // Imagen de Placeholder dinámica
+            const placeholderText = material.nombre.split(' ').slice(0, 2).join('+');
+            const placeholderImageUrl = `https://placehold.co/400x200/f97316/ffffff?text=${placeholderText}`;
 
             return (
-                <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden">
+                <div className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-shadow duration-300 overflow-hidden border border-gray-200">
                     <img src={placeholderImageUrl} alt={material.nombre} className="w-full h-48 object-cover" onError={(e) => { e.target.onerror = null; e.target.src = 'https://placehold.co/400x200/cccccc/000000?text=Material'; }} />
                     <div className="p-5">
                         <h3 className="text-2xl font-bold text-gray-800 mb-2">{material.nombre}</h3>
-                        <p className="text-gray-600 mb-4">{material.descripcion}</p>
+                        <p className="text-gray-600 mb-4 h-12 overflow-hidden">{material.descripcion}</p>
                         
                         <div className="flex items-center justify-between">
                             {isEditing ? (
                                 <input
                                     type="number"
+                                    step="0.01"
                                     value={newPrecio}
                                     onChange={(e) => setNewPrecio(e.target.value)}
-                                    className="border border-orange-300 rounded-lg p-2 w-full text-lg font-mono"
+                                    className="border border-orange-300 rounded-lg p-2 w-2/3 text-xl font-mono focus:ring-orange-500 focus:border-orange-500"
                                     placeholder="Nuevo precio"
                                 />
                             ) : (
                                 <p className="text-3xl font-extrabold text-orange-600">
-                                    {formatCurrency(material.precio)}
+                                    {formatCurrency(material.precio || 0)}
                                 </p>
                             )}
 
                             {isAdmin && (
                                 <button
                                     onClick={() => isEditing ? handleSave() : setIsEditing(true)}
-                                    className={`ml-3 px-4 py-2 rounded-full text-white transition-colors duration-200 
+                                    className={`ml-3 px-4 py-2 rounded-full text-white font-semibold transition-colors duration-200 shadow-md
                                                 ${isEditing ? 'bg-green-600 hover:bg-green-700' : 'bg-orange-500 hover:bg-orange-600'}`}
                                 >
                                     {isEditing ? 'Guardar' : 'Editar'}
@@ -275,111 +295,4 @@
 
         // Componente del Encabezado
         const Header = ({ userId, isAdmin }) => (
-            <header className="bg-white p-6 rounded-xl shadow-md border-b-4 border-orange-600 mb-8">
-                <div className="flex justify-between items-center">
-                    <h1 className="text-4xl font-extrabold text-gray-800 flex items-center">
-                        <svg className="w-8 h-8 mr-3 text-orange-600" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M10 2a8 8 0 100 16 8 8 0 000-16zM6 10a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1z"></path>
-                            <path fillRule="evenodd" d="M10 2a8 8 0 100 16 8 8 0 000-16zM6 10a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1z" clipRule="evenodd"></path>
-                        </svg>
-                        Catálogo de Materiales
-                    </h1>
-                    <div className="text-right">
-                        <span className={`inline-block px-3 py-1 text-sm font-semibold rounded-full 
-                                         ${isAdmin ? 'bg-red-200 text-red-800' : 'bg-blue-200 text-blue-800'}`}>
-                            {isAdmin ? 'Modo Administrador' : 'Modo Cliente'}
-                        </span>
-                        <p className="text-xs text-gray-500 mt-1 truncate">
-                            ID de Usuario: {userId}
-                        </p>
-                    </div>
-                </div>
-                <p className="text-gray-500 mt-2">
-                    Visualiza y gestiona los precios de los materiales de construcción en tiempo real.
-                </p>
-            </header>
-        );
-
-        // Componente para cargar los datos iniciales (Solo visible si no hay datos)
-        const InitialDataLoader = ({ db }) => {
-            const [status, setStatus] = useState('');
-            
-            const initialData = [
-                { nombre: "Cemento Gris", precio: 220.00, descripcion: "Bolsa de 50kg, alta resistencia." },
-                { nombre: "Varilla 3/8", precio: 150.00, descripcion: "Tramo de 12m, acero corrugado." },
-                { nombre: "Arena de Río", precio: 500.00, descripcion: "Metro cúbico, ideal para mezcla." },
-                { nombre: "Grava 3/4", precio: 550.00, descripcion: "Metro cúbico, agregados gruesos." },
-                { nombre: "Ladrillo Rojo", precio: 4.50, descripcion: "Pieza común para muros divisorios." },
-                { nombre: "Impermeabilizante", precio: 1200.00, descripcion: "Cubeta de 19L, acrílico fibratado." },
-            ];
-
-            const loadData = async () => {
-                if (!db) {
-                    setStatus("Error: Base de datos no inicializada.");
-                    return;
-                }
-                setStatus("Cargando datos...");
-                try {
-                    const materialesPath = getPublicCollectionPath('materiales');
-                    for (const item of initialData) {
-                        // Usamos setDoc con merge para crear el documento con un ID simple (el nombre)
-                        const docRef = doc(db, materialesPath, item.nombre.replace(/\s/g, '-'));
-                        await setDoc(docRef, item, { merge: true });
-                    }
-                    setStatus("✅ ¡Datos iniciales cargados con éxito! La aplicación se actualizará.");
-                } catch (error) {
-                    setStatus("❌ Error al cargar datos: " + error.message);
-                    console.error("Error en InitialDataLoader:", error);
-                }
-            };
-
-            return (
-                <div className="mt-4 p-4 border border-blue-400 bg-blue-50 rounded-lg">
-                    <p className="font-semibold text-blue-800">Cargador Rápido de Datos</p>
-                    <p className="text-sm text-blue-700 mb-3">
-                        Haz clic para poblar la base de datos con materiales de ejemplo.
-                    </p>
-                    <button 
-                        onClick={loadData}
-                        disabled={status.startsWith('Cargando') || status.startsWith('✅')}
-                        className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition-colors disabled:opacity-50"
-                    >
-                        {status.startsWith('Cargando') ? 'Cargando...' : 'Cargar Datos Iniciales'}
-                    </button>
-                    {status && <p className="mt-2 text-sm text-blue-900">{status}</p>}
-                </div>
-            );
-        };
-        
-        // Componente de Instrucciones (para el final de la página)
-        const Instructions = ({ isAdmin }) => (
-            <div className="mt-10 p-6 bg-white rounded-xl shadow border-l-4 border-orange-500">
-                <h2 className="text-2xl font-bold text-gray-800 mb-3">Instrucciones para {isAdmin ? 'Administrador' : 'Cliente'}</h2>
-                <ul className="list-disc list-inside space-y-2 text-gray-700">
-                    {!isAdmin && (
-                        <>
-                            <li>**Modo Cliente:** Puedes ver todos los materiales y sus precios en tiempo real.</li>
-                            <li>La información está guardada en una base de datos de **Firestore**, así que si tu amigo o colega ve el mismo enlace, verá los mismos precios actualizados.</li>
-                        </>
-                    )}
-                    {isAdmin && (
-                        <>
-                            <li>**Modo Administrador (Tu ID es 'admin-construapp-logic'):** Puedes editar los precios directamente en la tarjeta de cada material.</li>
-                            <li>Haz clic en **"Editar"**, escribe el nuevo precio, y luego haz clic en **"Guardar"**.</li>
-                            <li>El cambio se guardará en la base de datos y se verá reflejado inmediatamente para todos los usuarios.</li>
-                        </>
-                    )}
-                </ul>
-                <p className="mt-4 text-sm text-gray-500">
-                    Tu ID de usuario es visible en el encabezado. Si necesitas compartir el modo administrador, debes decirle a la otra persona que use tu mismo ID (`admin-construapp-logic`).
-                </p>
-            </div>
-        );
-
-
-        // --- Renderizado de la Aplicación ---
-        // Llama a initFirebase. El renderizado inicial se hace dentro de initFirebase después de la autenticación.
-        initFirebase();
-    </script>
-</body>
-</html>
+            <header className="bg-white p-6 rounded-xl shadow-md border-b-4 border-
